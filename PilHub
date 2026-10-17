@@ -1,0 +1,314 @@
+--[[
+    PulHubAdmin - Ultimate Edition (English UI)
+    Design based on user screenshot.
+    Includes: UI, player list, profiles, Fly, Noclip.
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Color Theme
+local Theme = {
+    Bg = Color3.fromRGB(10, 8, 18),
+    Sidebar = Color3.fromRGB(15, 12, 26),
+    Panel = Color3.fromRGB(20, 16, 35),
+    Accent = Color3.fromRGB(140, 70, 255),
+    AccentDark = Color3.fromRGB(80, 40, 150),
+    Text = Color3.fromRGB(255, 255, 255),
+    Muted = Color3.fromRGB(150, 150, 170),
+    Red = Color3.fromRGB(255, 60, 60),
+    Blue = Color3.fromRGB(60, 130, 255),
+    Green = Color3.fromRGB(60, 220, 100),
+    Line = Color3.fromRGB(40, 30, 60)
+}
+
+-- State
+local State = {
+    SelectedPlayer = nil,
+    Flying = false,
+    Noclip = false
+}
+
+-- UI Helpers
+local function create(className, props, parent)
+    local obj = Instance.new(className)
+    for k, v in pairs(props or {}) do obj[k] = v end
+    obj.Parent = parent
+    return obj
+end
+
+local function addCorner(obj, radius)
+    create("UICorner", {CornerRadius = UDim.new(0, radius or 8)}, obj)
+end
+
+local function addStroke(obj, color, thickness)
+    create("UIStroke", {Color = color or Theme.Line, Thickness = thickness or 1}, obj)
+end
+
+-- Main Window
+local GUI = create("ScreenGui", {Name = "PulHubUltimate", ResetOnSpawn = false, DisplayOrder = 999}, PlayerGui)
+local Main = create("Frame", {Size = UDim2.new(0.95, 0, 0.9, 0), Position = UDim2.new(0.025, 0, 0.05, 0), BackgroundColor3 = Theme.Bg}, GUI)
+create("UISizeConstraint", {MinSize = Vector2.new(800, 500), MaxSize = Vector2.new(1300, 800)}, Main)
+addCorner(Main, 16); addStroke(Main, Theme.Accent, 2)
+
+-- Header
+local Header = create("Frame", {Size = UDim2.new(1, 0, 0, 70), BackgroundColor3 = Theme.Sidebar}, Main)
+addCorner(Header, 16)
+create("Frame", {Size = UDim2.new(1, 0, 0, 20), Position = UDim2.new(0, 0, 1, -20), BackgroundColor3 = Theme.Sidebar, BorderSizePixel = 0}, Header)
+
+create("TextLabel", {Text = "👑 ADMIN PANEL", Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 20, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 24, TextXAlignment = Enum.TextXAlignment.Left}, Header)
+create("TextLabel", {Text = "Murder Mystery 2 • Your Game", Size = UDim2.new(0, 300, 0, 20), Position = UDim2.new(0, 20, 0, 38), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Header)
+
+local CloseBtn = create("TextButton", {Text = "✕", Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -45, 0, 20), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.GothamBold, TextSize = 20}, Header)
+CloseBtn.MouseButton1Click:Connect(function() GUI:Destroy() end)
+
+-- Sidebar
+local Sidebar = create("Frame", {Size = UDim2.new(0, 220, 1, -90), Position = UDim2.new(0, 15, 0, 80), BackgroundColor3 = Theme.Sidebar}, Main)
+addCorner(Sidebar, 12)
+
+create("UIListLayout", {Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, Sidebar)
+create("UIPadding", {PaddingTop = UDim.new(0, 15), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, Sidebar)
+
+local function SidebarBtn(text, order)
+    local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = Theme.Sidebar, BackgroundTransparency = 1, Text = "  " .. text, TextColor3 = Theme.Muted, Font = Enum.Font.GothamMedium, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = order}, Sidebar)
+    addCorner(btn, 6)
+    btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = 0.8, TextColor3 = Theme.Text}):Play() end)
+    btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = 1, TextColor3 = Theme.Muted}):Play() end)
+    return btn
+end
+
+local btnPlayers = SidebarBtn("👥 Players", 1)
+local btnRoles = SidebarBtn("👺 Roles", 2)
+local btnCheats = SidebarBtn("⚡ Cheats", 3)
+local btnMod = SidebarBtn("🛡 Moderation", 4)
+
+btnPlayers.BackgroundTransparency = 0.7
+btnPlayers.TextColor3 = Theme.Accent
+
+create("TextLabel", {Text = "PLAY FAIR\nSTAY LEGENDARY", Size = UDim2.new(1, 0, 0, 40), Position = UDim2.new(0, 0, 1, -50), BackgroundTransparency = 1, TextColor3 = Theme.AccentDark, Font = Enum.Font.GothamBold, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center}, Sidebar)
+
+-- Main Area (Player List)
+local MainArea = create("Frame", {Size = UDim2.new(0.6, -30, 1, -90), Position = UDim2.new(0, 250, 0, 80), BackgroundColor3 = Theme.Panel}, Main)
+addCorner(MainArea, 12)
+
+local ListHeader = create("Frame", {Size = UDim2.new(1, 0, 0, 50), BackgroundTransparency = 1}, MainArea)
+create("TextLabel", {Text = "👥 Players", Size = UDim2.new(0, 100, 1, 0), Position = UDim2.new(0, 15, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Left}, ListHeader)
+local PlayerCountLabel = create("TextLabel", {Text = "0/0", Size = UDim2.new(0, 50, 1, 0), Position = UDim2.new(0, 100, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left}, ListHeader)
+
+local SearchBar = create("Frame", {Size = UDim2.new(0, 200, 0, 32), Position = UDim2.new(1, -215, 0, 9), BackgroundColor3 = Theme.Sidebar}, ListHeader)
+addCorner(SearchBar, 6); addStroke(SearchBar, Theme.Line)
+create("TextLabel", {Text = "🔍", Size = UDim2.new(0, 30, 1, 0), BackgroundTransparency = 1, TextColor3 = Theme.Muted, TextSize = 14}, SearchBar)
+local SearchBox = create("TextBox", {Size = UDim2.new(1, -35, 1, 0), Position = UDim2.new(0, 30, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Search by name...", TextColor3 = Theme.Text, PlaceholderColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, SearchBar)
+
+-- Table Headers
+local Columns = create("Frame", {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 10, 0, 55), BackgroundTransparency = 1}, MainArea)
+create("TextLabel", {Text = "#", Size = UDim2.new(0, 30, 1, 0), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12}, Columns)
+create("TextLabel", {Text = "Player", Size = UDim2.new(0, 150, 1, 0), Position = UDim2.new(0, 40, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Columns)
+create("TextLabel", {Text = "Role", Size = UDim2.new(0, 100, 1, 0), Position = UDim2.new(0, 200, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, Columns)
+create("TextLabel", {Text = "Actions", Size = UDim2.new(0, 80, 1, 0), Position = UDim2.new(1, -90, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12}, Columns)
+
+local PlayerList = create("ScrollingFrame", {Size = UDim2.new(1, -20, 1, -90), Position = UDim2.new(0, 10, 0, 90), BackgroundTransparency = 1, ScrollBarThickness = 4, ScrollBarImageColor3 = Theme.Accent, CanvasSize = UDim2.new()}, MainArea)
+create("UIListLayout", {Padding = UDim.new(0, 5)}, PlayerList)
+
+-- Profile Area
+local ProfileArea = create("Frame", {Size = UDim2.new(0.4, -30, 1, -90), Position = UDim2.new(0.6, 10, 0, 80), BackgroundColor3 = Theme.Panel}, Main)
+addCorner(ProfileArea, 12)
+
+local function GetRoleColor(role)
+    if role == "Murderer" then return Theme.Red end
+    if role == "Sheriff" then return Theme.Blue end
+    return Theme.Green
+end
+
+local function UpdateProfile(player)
+    for _, v in ipairs(ProfileArea:GetChildren()) do
+        if v:IsA("Frame") or v:IsA("TextLabel") then v:Destroy() end
+    end
+    
+    if not player then
+        create("TextLabel", {Text = "Select a player", Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 0, 20), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 14}, ProfileArea)
+        return
+    end
+
+    local TopInfo = create("Frame", {Size = UDim2.new(1, -20, 0, 60), Position = UDim2.new(0, 10, 0, 10), BackgroundTransparency = 1}, ProfileArea)
+    create("ImageLabel", {Size = UDim2.new(0, 50, 0, 50), BackgroundColor3 = Theme.Sidebar, Image = "rbxthumb://type=AvatarHeadShot&id="..player.UserId.."&w=150&h=150"}, TopInfo)
+    create("TextLabel", {Text = player.DisplayName, Size = UDim2.new(1, -60, 0, 25), Position = UDim2.new(0, 60, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 18, TextXAlignment = Enum.TextXAlignment.Left}, TopInfo)
+    create("TextLabel", {Text = "@" .. player.Name, Size = UDim2.new(1, -60, 0, 20), Position = UDim2.new(0, 60, 0, 25), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, TopInfo)
+
+    local RoleFrame = create("Frame", {Size = UDim2.new(1, -20, 0, 60), Position = UDim2.new(0, 10, 0, 80), BackgroundColor3 = Theme.Sidebar}, ProfileArea)
+    addCorner(RoleFrame, 8)
+    
+    -- Role Simulation for MM2 style
+    local mockRole = "Innocent" 
+    if player.UserId % 3 == 0 then mockRole = "Murderer" elseif player.UserId % 2 == 0 then mockRole = "Sheriff" end
+    
+    create("TextLabel", {Text = "Role", Size = UDim2.new(1, -20, 0, 20), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, RoleFrame)
+    create("TextLabel", {Text = mockRole, Size = UDim2.new(1, -20, 0, 25), Position = UDim2.new(0, 10, 0, 25), BackgroundTransparency = 1, TextColor3 = GetRoleColor(mockRole), Font = Enum.Font.GothamBold, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left}, RoleFrame)
+
+    local btnSpectate = create("TextButton", {Text = "👁 Spectate", Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 0, 150), BackgroundColor3 = Theme.Sidebar, TextColor3 = Theme.Text, Font = Enum.Font.Gotham, TextSize = 13}, ProfileArea)
+    addCorner(btnSpectate, 6)
+    btnSpectate.MouseButton1Click:Connect(function()
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            workspace.CurrentCamera.CameraSubject = player.Character.Humanoid
+        end
+    end)
+
+    local btnTp = create("TextButton", {Text = "🚀 Teleport to Player", Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 0, 195), BackgroundColor3 = Theme.Sidebar, TextColor3 = Theme.Text, Font = Enum.Font.Gotham, TextSize = 13}, ProfileArea)
+    addCorner(btnTp, 6)
+    btnTp.MouseButton1Click:Connect(function()
+        if player.Character and LocalPlayer.Character then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
+        end
+    end)
+
+    local btnKick = create("TextButton", {Text = "🚫 Kick", Size = UDim2.new(0.5, -15, 0, 35), Position = UDim2.new(0, 10, 0, 250), BackgroundColor3 = Theme.Red, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 13}, ProfileArea)
+    addCorner(btnKick, 6)
+    btnKick.MouseButton1Click:Connect(function()
+        for _, obj in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+            if obj:IsA("RemoteEvent") and (obj.Name:lower():find("kick") or obj.Name:lower():find("ban")) then
+                pcall(function() obj:FireServer(player) end)
+            end
+        end
+    end)
+end
+
+local function RefreshList()
+    for _, v in ipairs(PlayerList:GetChildren()) do
+        if v:IsA("TextButton") then v:Destroy() end
+    end
+    
+    local players = Players:GetPlayers()
+    PlayerCountLabel.Text = #players .. "/" .. #players
+
+    for i, plr in ipairs(players) do
+        local row = create("TextButton", {Size = UDim2.new(1, -4, 0, 40), BackgroundColor3 = Theme.Sidebar, BackgroundTransparency = 0.5, Text = "", LayoutOrder = i}, PlayerList)
+        addCorner(row, 6)
+        
+        create("TextLabel", {Text = i, Size = UDim2.new(0, 30, 1, 0), Position = UDim2.new(0, 5, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Muted, Font = Enum.Font.Gotham, TextSize = 12}, row)
+        
+        local avatar = create("ImageLabel", {Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(0, 35, 0, 6), BackgroundColor3 = Theme.Panel, Image = "rbxthumb://type=AvatarHeadShot&id="..plr.UserId.."&w=48&h=48"}, row)
+        addCorner(avatar, 14)
+        
+        create("TextLabel", {Text = plr.DisplayName, Size = UDim2.new(0, 150, 1, 0), Position = UDim2.new(0, 70, 0, 0), BackgroundTransparency = 1, TextColor3 = Theme.Text, Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left}, row)
+        
+        local mockRole = "Innocent"
+        local rColor = Theme.Green
+        if plr.UserId % 3 == 0 then mockRole = "Murderer"; rColor = Theme.Red elseif plr.UserId % 2 == 0 then mockRole = "Sheriff"; rColor = Theme.Blue end
+        
+        create("TextLabel", {Text = mockRole, Size = UDim2.new(0, 100, 1, 0), Position = UDim2.new(0, 200, 0, 0), BackgroundTransparency = 1, TextColor3 = rColor, Font = Enum.Font.Gotham, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left}, row)
+        
+        row.MouseButton1Click:Connect(function()
+            State.SelectedPlayer = plr
+            UpdateProfile(plr)
+            for _, child in ipairs(PlayerList:GetChildren()) do
+                if child:IsA("TextButton") then child.BackgroundColor3 = Theme.Sidebar end
+            end
+            row.BackgroundColor3 = Theme.AccentDark
+        end)
+    end
+end
+
+-- Cheats Tab
+local function ShowCheatsTab()
+    for _, v in ipairs(MainArea:GetChildren()) do v.Visible = false end
+    
+    local CheatFrame = MainArea:FindFirstChild("CheatFrame")
+    if not CheatFrame then
+        CheatFrame = create("Frame", {Name = "CheatFrame", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1}, MainArea)
+        create("TextLabel", {Text = "⚡ CHEAT FUNCTIONS", Size = UDim2.new(1, 0, 0, 40), Position = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, TextColor3 = Theme.Text, Font = Enum.Font.GothamBold, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left}, CheatFrame)
+
+        local flyBtn = create("TextButton", {Text = "Fly: OFF", Size = UDim2.new(0.8, 0, 0, 40), Position = UDim2.new(0.1, 0, 0, 80), BackgroundColor3 = Theme.Sidebar, TextColor3 = Theme.Text, Font = Enum.Font.Gotham}, CheatFrame)
+        addCorner(flyBtn, 8)
+        flyBtn.MouseButton1Click:Connect(function()
+            State.Flying = not State.Flying
+            flyBtn.Text = "Fly: " .. (State.Flying and "ON" or "OFF")
+            flyBtn.BackgroundColor3 = State.Flying and Theme.Green or Theme.Sidebar
+            
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if State.Flying and hrp then
+                local bv = Instance.new("BodyVelocity", hrp)
+                bv.Name = "CheatFly"
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bv.Velocity = Vector3.new(0,0,0)
+                RunService.RenderStepped:Connect(function()
+                    if not State.Flying or not bv.Parent then return end
+                    local moveDir = Vector3.new(0,0,0)
+                    local cam = workspace.CurrentCamera
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0,1,0) end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0,1,0) end
+                    bv.Velocity = moveDir.Magnitude > 0 and moveDir.Unit * 50 or Vector3.new(0,0,0)
+                end)
+            else
+                if hrp then
+                    local bv = hrp:FindFirstChild("CheatFly")
+                    if bv then bv:Destroy() end
+                end
+            end
+        end)
+
+        local noclipBtn = create("TextButton", {Text = "Noclip: OFF", Size = UDim2.new(0.8, 0, 0, 40), Position = UDim2.new(0.1, 0, 0, 130), BackgroundColor3 = Theme.Sidebar, TextColor3 = Theme.Text, Font = Enum.Font.Gotham}, CheatFrame)
+        addCorner(noclipBtn, 8)
+        noclipBtn.MouseButton1Click:Connect(function()
+            State.Noclip = not State.Noclip
+            noclipBtn.Text = "Noclip: " .. (State.Noclip and "ON" or "OFF")
+            noclipBtn.BackgroundColor3 = State.Noclip and Theme.Green or Theme.Sidebar
+        end)
+        RunService.Stepped:Connect(function()
+            if State.Noclip and LocalPlayer.Character then
+                for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if v:IsA("BasePart") then v.CanCollide = false end
+                end
+            end
+        end)
+    end
+    CheatFrame.Visible = true
+end
+
+local function ShowPlayersTab()
+    for _, v in ipairs(MainArea:GetChildren()) do
+        if v:IsA("Frame") and v.Name == "CheatFrame" then v.Visible = false else v.Visible = true end
+    end
+end
+
+-- Menu Buttons Logic
+btnPlayers.MouseButton1Click:Connect(function()
+    btnPlayers.BackgroundTransparency = 0.7; btnPlayers.TextColor3 = Theme.Accent
+    btnCheats.BackgroundTransparency = 1; btnCheats.TextColor3 = Theme.Muted
+    ShowPlayersTab()
+end)
+
+btnCheats.MouseButton1Click:Connect(function()
+    btnCheats.BackgroundTransparency = 0.7; btnCheats.TextColor3 = Theme.Accent
+    btnPlayers.BackgroundTransparency = 1; btnPlayers.TextColor3 = Theme.Muted
+    ShowCheatsTab()
+end)
+
+-- Dragging
+local dragging, dragStart, startPos
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function() dragging = false end)
+
+-- Auto Update
+Players.PlayerAdded:Connect(RefreshList)
+Players.PlayerRemoving:Connect(RefreshList)
+RefreshList()
+UpdateProfile(nil)
